@@ -60,7 +60,6 @@ def lambda_handler(event, context):
         print(f"event : {event}")
         try:
             model_package_arn = event['detail']["ModelPackageArn"]
-            inf_image_uri = event['detail']["InferenceSpecification"]["Containers"][0]["Image"]
             model_data = event['detail']["InferenceSpecification"]["Containers"][0]["ModelDataUrl"]
             model_package_group_name = event['detail']["ModelPackageGroupName"]
         except:
@@ -77,11 +76,9 @@ def lambda_handler(event, context):
                     ModelPackageName=response['ModelPackageSummaryList'][0]['ModelPackageArn']
                 )
             model_package_arn = response["ModelPackageArn"]
-            inf_image_uri = response["InferenceSpecification"]["Containers"][0]["Image"]
             model_data = response["InferenceSpecification"]["Containers"][0]["ModelDataUrl"]
 
-        print("model_package_arn: ", model_package_arn)
-        print("inf_image_uri: ", inf_image_uri)  
+        print("model_package_arn: ", model_package_arn) 
         print("model_data: ", model_data)  
         print("model_package_group_name: ", model_package_group_name)
         
@@ -99,9 +96,9 @@ def lambda_handler(event, context):
 
         detect_processor = FrameworkProcessor(
             PyTorch,
-            framework_version="1.9",
+            framework_version="1.10",
+            py_version="py38",
             role=role, 
-            image_uri=inf_image_uri,
             instance_count=instance_count,
             instance_type=instance_type,
             code_location=code_location
