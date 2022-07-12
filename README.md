@@ -4,10 +4,13 @@ RAMP Program is a customer-centered workshop program in which customers directly
 
 In the MLOPS RAMP Program, as a Data Scientist, customers develop models in Amazon SageMaker, or you actually do methods of model inference, and in the role of Machine Learning Platform Engineer/MLOps Engineer, you implement the end-to-end workflow from data preparation to model distribution.
 
-
+1. VISION model and Step Function
 ![ref-architecture.png](./figures/ref-architecture.png)
 
 ![ref-architecture-implements.png](./figures/ref-architecture-implements.png)
+
+2. AutoGluon and SageMaker Pipelines
+WIP
 
 ## Security
 
