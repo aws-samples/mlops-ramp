@@ -13,9 +13,14 @@ This senario performs model development using the Object Detection model of Yolo
     <img src="https://raw.githubusercontent.com/aws-samples/mlops-ramp/main/mlops-for-vision-step-fn/figures/ref-architecture-implements.png" width="65%"/>
 </div>
 
-## <div>2. AutoGluon and SageMaker Pipelines</div>
+## <div>2. AutoGluon Model and SageMaker Pipeline </div>
+[Go reference architecture](https://github.com/aws-samples/mlops-ramp/tree/main/mlops-for-autogluon-pipelines)
 
-WIP
+This senario performs model development using the Binary Classification model of Autogluon and then builds the MLOps architecture using SageMaker Pipelines from the customer's account. All implementations are directly done by the customer and the issues that arise during the course of the program are shared by the SAs in charge and supported by debugging.
+
+<div align="center">
+    <img src="https://raw.githubusercontent.com/aws-samples/mlops-ramp/main/mlops-for-autogluon-pipelines/figures/ref-architecture-implements-autogluon.png" width="65%"/>
+</div>
 
 ## Security
 
