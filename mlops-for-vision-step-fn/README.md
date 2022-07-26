@@ -10,6 +10,24 @@ All implementations are directly done by the customer and the issues that arise 
 
 ![ref-architecture-implements.png](./figures/ref-architecture-implements.png)
 
+
+## Known issues
+
+#### ImportError: libGL.so.1: cannot open shared object file: No such file or directory
+
+When using the pytorch inference image from the docker, this error might be occured. A solution to the issue can be found in the [inference docker file](./1.SageMaker-Training-Processing/docker/Dockerfile.inf). Please uncomment the line, below and run the docker build command.
+````
+# For gaining a tmp directory priviledge
+# RUN chmod 777 -R /tmp
+````
+#### LAMBDA_RUNTIME Failed to get next invocation. Http Response code: 404
+
+When using an inference image in a lambda function, this error might be occured. A potential fix could be adding the following lines to the [docker file](./3.MLOps-Approval-Evaluation/Dockerfile)
+````
+# To fix a python runtime version
+ENV AWS_LAMBDA_RUNTIME_API=3.9
+````
+
 ## Security
 
 See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more information.

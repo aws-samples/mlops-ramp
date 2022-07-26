@@ -3,6 +3,9 @@ ARG BASE_IMAGE="763104351884.dkr.ecr.us-west-2.amazonaws.com/pytorch-inference:1
 
 FROM $BASE_IMAGE
 
+# For gaining a tmp directory priviledge
+# RUN chmod 777 -R /tmp
+
 # Install linux packages
 # RUN apt update && apt install -y zip htop screen libgl1-mesa-glx
 
