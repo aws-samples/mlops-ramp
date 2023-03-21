@@ -1,0 +1,12 @@
+# docker build -f Dockerfile.inf -t 322537213286.dkr.ecr.us-west-2.amazonaws.com/pytorch-inference:1.13.1-gpu-py39-nemo-main .
+From 763104351884.dkr.ecr.us-west-2.amazonaws.com/pytorch-inference:1.13.1-gpu-py39
+
+RUN pip install --no-cache-dir --upgrade pip \
+ && pip install --no-cache-dir -U sagemaker nvgpu hydra-core librosa sentencepiece youtokentome inflect pyannote.audio \
+ && pip install --no-cache-dir -U braceexpand webdataset editdistance jiwer jsonlines \
+ && pip install --no-cache-dir -U pytorch-lightning \ 
+ && pip install --no-cache-dir git+https://github.com/huggingface/transformers \ 
+ && pip install --no-cache-dir git+https://github.com/NVIDIA/NeMo.git@main
+
+COPY list_gpus.py /opt/conda/lib/python3.9/site-packages/nvgpu/list_gpus.py
+WORKDIR /
