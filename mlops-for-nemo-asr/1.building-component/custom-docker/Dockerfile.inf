@@ -4,7 +4,7 @@ From 763104351884.dkr.ecr.us-west-2.amazonaws.com/pytorch-inference:1.13.1-gpu-p
 RUN pip install --no-cache-dir --upgrade pip \
  && pip install --no-cache-dir -U sagemaker nvgpu hydra-core librosa sentencepiece youtokentome inflect pyannote.audio \
  && pip install --no-cache-dir -U braceexpand webdataset editdistance jiwer jsonlines \
- && pip install --no-cache-dir -U pytorch-lightning \ 
+ && pip install --no-cache-dir pytorch-lightning==1.9.4 \ 
  && pip install --no-cache-dir git+https://github.com/huggingface/transformers \ 
  && pip install --no-cache-dir git+https://github.com/NVIDIA/NeMo.git@main
 
