@@ -80,7 +80,7 @@ Resources:
   EndpointParameter:
     Type: AWS::SSM::Parameter
     Properties:
-      Name: "nemo-cyj-ENDPOINT-NAME"
+      Name: !Sub ENDPOINTNAME-${SageMakerProjectName}-${StageName}
       Type: String
       Value: !Sub ${SageMakerProjectName}-${StageName}
 
@@ -88,6 +88,6 @@ Resources:
   DataCaptureParameter:
     Type: AWS::SSM::Parameter
     Properties:
-      Name: "nemo-cyj-MONITOR-OUTPUT"
+      Name: !Sub MONITOROUTPUT-${SageMakerProjectName}-${StageName}
       Type: String
       Value: !Ref DataCaptureUploadPath
