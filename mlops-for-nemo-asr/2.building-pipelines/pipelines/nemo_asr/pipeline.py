@@ -47,7 +47,7 @@ from sagemaker.workflow.model_step import ModelStep
 from sagemaker.model import Model
 from sagemaker.workflow.pipeline_context import PipelineSession
 
-from pipelines.nemo_asr.config.config import config_handler
+#from pipelines.nemo_asr.config.config import config_handler
 from utils.ssm import parameter_store
 from sagemaker.pytorch.estimator import PyTorch
 from sagemaker.workflow.functions import Join
@@ -145,6 +145,8 @@ class sm_pipeline():
         self.prefix = self.pm.get_params(key="PREFIX")
         if pipeline_name is None: self.pipeline_name = self.base_job_prefix + "-pipeline" #self.pipeline_config.get_value("PIPELINE", "name")
         else: self.pipeline_name = pipeline_name
+        
+        print (f"pipeline name: {self.pipeline_name}")
 
         self.sagemaker_session = get_session(self.region, default_bucket)
         self.pipeline_session = get_pipeline_session(region, default_bucket)
@@ -170,19 +172,6 @@ class sm_pipeline():
                 backoff_rate=1.0
             ),
         ]
-        
-        #self.pipeline_config.set_value("PREPROCESSING", "image_uri", self.pm.get_params(key=''.join([self.base_job_prefix, "IMAGE-URI"])))
-        #self.pipeline_config.set_value("TRAINING", "image_uri", self.pm.get_params(key=''.join([self.base_job_prefix, "IMAGE-URI"])))
-        #self.pipeline_config.set_value("EVALUATION", "image_uri", self.pm.get_params(key=''.join([self.base_job_prefix, "IMAGE-URI"])))
-        #pm.get_params(key="-".join([prefix, "IMAGE-URI"]))
-        
-        #self.model_approval_status = self.pipeline_config.get_value("MODEL_REGISTER", "model_approval_status_default") #"PendingManualApproval"
-        
-        
-        # self.model_approval_status = ParameterString(
-        #     name="ModelApprovalStatus",
-        #     default_value="PendingManualApproval"
-        # )
         
         self.proc_prefix = "/opt/ml/processing"        
         self.input_data_path = self.pm.get_params(key="-".join([self.prefix, "S3-DATA-PATH"])) #self.pipeline_config.get_value("INPUT", "input_data_s3_uri") 
@@ -270,29 +259,49 @@ class sm_pipeline():
     
     def _step_preprocessing(self, ):
         
-
-
-        '''
-            1. processor for preprocessing task 정의
-              : 1.nemo-preprocessing-job 참조
-          
-        '''
-        ################
-        ## your codes ##
-        ################
-        
-        '''
-            2. step argument 정의
-              : 1.nemo-preprocessing-job 참조
-          
-        '''
+        dataset_processor = FrameworkProcessor(
+            estimator_cls=PyTorch,
+            framework_version=None,
+            image_uri=self.pm.get_params(key="-".join([self.prefix, "IMAGE-URI"])), #self.pipeline_config.get_value("PREPROCESSING", "image_uri"),
+            instance_type="ml.m5.xlarge", #self.pipeline_config.get_value("PREPROCESSING", "instance_type"), #self.processing_instance_type,
+            instance_count=1, #self.pipeline_config.get_value("PREPROCESSING", "instance_count", dtype="int"), #self.processing_instance_count,
+            role=self.role,
+            base_job_name=f"{self.base_job_prefix}/preprocessing", # bucket에 보이는 이름 (pipeline으로 묶으면 pipeline에서 정의한 이름으로 bucket에 보임)
+            sagemaker_session=self.pipeline_session
+        )
         
         step_args = dataset_processor.run(
             job_name="preprocessing", ## 이걸 넣어야 캐시가 작동함, 안그러면 프로세서의 base_job_name 이름뒤에 날짜 시간이 붙어서 캐시 동작 안함
+            code='./preprocessing.py', #소스 디렉토리 안에서 파일 path
+            source_dir="./code/", #현재 파일에서 소스 디렉토리 상대경로 # add processing.py and requirements.txt here
+            git_config=self.git_config,
+            inputs=[
+                ProcessingInput(
+                    input_name="input-data",
+                    source=self.input_data_path,
+                    destination=os.path.join(self.proc_prefix, "input")
+                ),
+            ],
+            outputs=[       
+                ProcessingOutput(
+                    output_name="output-data",
+                    source=os.path.join(self.proc_prefix, "output"),
+                    destination=Join(
+                        on="/",
+                        values=[
+                            "s3://{}".format(self.default_bucket),
+                            self.pipeline_name,
+                            #ExecutionVariables.PROCESSING_JOB_NAME,
+                            "preprocessing",
+                            "output-data"
+                        ],
+                    )
+                ),
+            ],
             
-            ################
-            ## your codes ##
-            ################
+            arguments=["--proc_prefix", self.proc_prefix, \
+                       "--train_mount_dir", "/opt/ml/input/data/training/", \
+                       "--test_mount_dir", "/opt/ml/input/data/testing/"],
         )
         
         self.preprocessing_process = ProcessingStep(
@@ -304,30 +313,53 @@ class sm_pipeline():
         
         print ("  \n== Preprocessing Step ==")
         print ("   \nArgs: ", self.preprocessing_process.arguments.items())
+        print ("   \nArgs: ", self.preprocessing_process.arguments)
         
     def _step_preprocessing_2(self, ):
         
-        '''
-            1. processor for preprocessing task 정의
-              : 1.nemo-preprocessing-job 참조
-          
-        '''
-        ################
-        ## your codes ##
-        ################
-        
-        '''
-            2. step argument 정의
-              : 1.nemo-preprocessing-job 참조
-          
-        '''
+        dataset_processor = FrameworkProcessor(
+            estimator_cls=PyTorch,
+            framework_version=None,
+            image_uri=self.pm.get_params(key="-".join([self.prefix, "IMAGE-URI"])), #self.pipeline_config.get_value("PREPROCESSING", "image_uri"),
+            instance_type="ml.m5.xlarge", #self.pipeline_config.get_value("PREPROCESSING", "instance_type"), #self.processing_instance_type,
+            instance_count=1, #self.pipeline_config.get_value("PREPROCESSING", "instance_count", dtype="int"), #self.processing_instance_count,
+            role=self.role,
+            base_job_name=f"{self.base_job_prefix}/preprocessing-2", # bucket에 보이는 이름 (pipeline으로 묶으면 pipeline에서 정의한 이름으로 bucket에 보임)
+            sagemaker_session=self.pipeline_session
+        )
         
         step_args = dataset_processor.run(
             job_name="preprocessing-2", ## 이걸 넣어야 캐시가 작동함, 안그러면 프로세서의 base_job_name 이름뒤에 날짜 시간이 붙어서 캐시 동작 안함
+            code='./preprocessing.py', #소스 디렉토리 안에서 파일 path
+            source_dir="./code/", #현재 파일에서 소스 디렉토리 상대경로 # add processing.py and requirements.txt here
+            git_config=self.git_config,
+            inputs=[
+                ProcessingInput(
+                    input_name="input-data",
+                    source=self.input_data_path,
+                    destination=os.path.join(self.proc_prefix, "input")
+                ),
+            ],
+            outputs=[       
+                ProcessingOutput(
+                    output_name="output-data-2",
+                    source=os.path.join(self.proc_prefix, "output"),
+                    destination=Join(
+                        on="/",
+                        values=[
+                            "s3://{}".format(self.default_bucket),
+                            self.pipeline_name,
+                            #ExecutionVariables.PROCESSING_JOB_NAME,
+                            "preprocessing",
+                            "output-data-2"
+                        ],
+                    )
+                ),
+            ],
             
-            ################
-            ## your codes ##
-            ################
+            arguments=["--proc_prefix", self.proc_prefix, \
+                       "--train_mount_dir", "/opt/ml/input/data/training/", \
+                       "--test_mount_dir", "/opt/ml/input/data/testing/"],
         )
         
         self.preprocessing_process_2 = ProcessingStep(
@@ -339,6 +371,7 @@ class sm_pipeline():
         
         print ("  \n== Preprocessing Step 2 ==")
         print ("   \nArgs: ", self.preprocessing_process_2.arguments.items())
+        print ("   \nArgs: ", self.preprocessing_process_2.arguments)
     
     
 
