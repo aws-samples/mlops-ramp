@@ -146,8 +146,8 @@ class sm_pipeline():
         if pipeline_name is None: self.pipeline_name = self.base_job_prefix + "-pipeline" #self.pipeline_config.get_value("PIPELINE", "name")
         else: self.pipeline_name = pipeline_name
         
-        print (f"pipeline name: {self.pipeline_name}")
-
+        
+        
         self.sagemaker_session = get_session(self.region, default_bucket)
         self.pipeline_session = get_pipeline_session(region, default_bucket)
         
@@ -173,6 +173,19 @@ class sm_pipeline():
             ),
         ]
         
+        #self.pipeline_config.set_value("PREPROCESSING", "image_uri", self.pm.get_params(key=''.join([self.base_job_prefix, "IMAGE-URI"])))
+        #self.pipeline_config.set_value("TRAINING", "image_uri", self.pm.get_params(key=''.join([self.base_job_prefix, "IMAGE-URI"])))
+        #self.pipeline_config.set_value("EVALUATION", "image_uri", self.pm.get_params(key=''.join([self.base_job_prefix, "IMAGE-URI"])))
+        #pm.get_params(key="-".join([prefix, "IMAGE-URI"]))
+        
+        #self.model_approval_status = self.pipeline_config.get_value("MODEL_REGISTER", "model_approval_status_default") #"PendingManualApproval"
+        
+        
+        # self.model_approval_status = ParameterString(
+        #     name="ModelApprovalStatus",
+        #     default_value="PendingManualApproval"
+        # )
+        
         self.proc_prefix = "/opt/ml/processing"        
         self.input_data_path = self.pm.get_params(key="-".join([self.prefix, "S3-DATA-PATH"])) #self.pipeline_config.get_value("INPUT", "input_data_s3_uri") 
         
@@ -191,6 +204,120 @@ class sm_pipeline():
             sm_experiment = Experiment.create(experiment_name=experiment_name)
             
         return sm_experiment
+    
+    def _step_preprocessing(self, ):
+        
+        dataset_processor = FrameworkProcessor(
+            estimator_cls=PyTorch,
+            framework_version=None,
+            image_uri=self.pm.get_params(key="-".join([self.prefix, "IMAGE-URI"])), #self.pipeline_config.get_value("PREPROCESSING", "image_uri"),
+            instance_type="ml.m5.xlarge", #self.pipeline_config.get_value("PREPROCESSING", "instance_type"), #self.processing_instance_type,
+            instance_count=1, #self.pipeline_config.get_value("PREPROCESSING", "instance_count", dtype="int"), #self.processing_instance_count,
+            role=self.role,
+            base_job_name=f"{self.base_job_prefix}/preprocessing", # bucket에 보이는 이름 (pipeline으로 묶으면 pipeline에서 정의한 이름으로 bucket에 보임)
+            sagemaker_session=self.pipeline_session
+        )
+        
+        step_args = dataset_processor.run(
+            job_name="preprocessing", ## 이걸 넣어야 캐시가 작동함, 안그러면 프로세서의 base_job_name 이름뒤에 날짜 시간이 붙어서 캐시 동작 안함
+            code='./preprocessing.py', #소스 디렉토리 안에서 파일 path
+            source_dir="./code/", #현재 파일에서 소스 디렉토리 상대경로 # add processing.py and requirements.txt here
+            git_config=self.git_config,
+            inputs=[
+                ProcessingInput(
+                    input_name="input-data",
+                    source=self.input_data_path,
+                    destination=os.path.join(self.proc_prefix, "input")
+                ),
+            ],
+            outputs=[       
+                ProcessingOutput(
+                    output_name="output-data",
+                    source=os.path.join(self.proc_prefix, "output"),
+                    destination=Join(
+                        on="/",
+                        values=[
+                            "s3://{}".format(self.default_bucket),
+                            self.pipeline_name,
+                            #ExecutionVariables.PROCESSING_JOB_NAME,
+                            "preprocessing",
+                            "output-data"
+                        ],
+                    )
+                ),
+            ],
+            
+            arguments=["--proc_prefix", self.proc_prefix, \
+                       "--train_mount_dir", "/opt/ml/input/data/training/", \
+                       "--test_mount_dir", "/opt/ml/input/data/testing/"],
+        )
+        
+        self.preprocessing_process = ProcessingStep(
+            name="PreprocessingProcess", ## Processing job이름
+            step_args=step_args,
+            cache_config=self.cache_config,
+            retry_policies=self.retry_policies
+        )
+        
+        print ("  \n== Preprocessing Step ==")
+        print ("   \nArgs: ", self.preprocessing_process.arguments.items())
+        
+    def _step_preprocessing_2(self, ):
+        
+        dataset_processor = FrameworkProcessor(
+            estimator_cls=PyTorch,
+            framework_version=None,
+            image_uri=self.pm.get_params(key="-".join([self.prefix, "IMAGE-URI"])), #self.pipeline_config.get_value("PREPROCESSING", "image_uri"),
+            instance_type="ml.m5.xlarge", #self.pipeline_config.get_value("PREPROCESSING", "instance_type"), #self.processing_instance_type,
+            instance_count=1, #self.pipeline_config.get_value("PREPROCESSING", "instance_count", dtype="int"), #self.processing_instance_count,
+            role=self.role,
+            base_job_name=f"{self.base_job_prefix}/preprocessing-2", # bucket에 보이는 이름 (pipeline으로 묶으면 pipeline에서 정의한 이름으로 bucket에 보임)
+            sagemaker_session=self.pipeline_session
+        )
+        
+        step_args = dataset_processor.run(
+            job_name="preprocessing-2", ## 이걸 넣어야 캐시가 작동함, 안그러면 프로세서의 base_job_name 이름뒤에 날짜 시간이 붙어서 캐시 동작 안함
+            code='./preprocessing.py', #소스 디렉토리 안에서 파일 path
+            source_dir="./code/", #현재 파일에서 소스 디렉토리 상대경로 # add processing.py and requirements.txt here
+            git_config=self.git_config,
+            inputs=[
+                ProcessingInput(
+                    input_name="input-data",
+                    source=self.input_data_path,
+                    destination=os.path.join(self.proc_prefix, "input")
+                ),
+            ],
+            outputs=[       
+                ProcessingOutput(
+                    output_name="output-data-2",
+                    source=os.path.join(self.proc_prefix, "output"),
+                    destination=Join(
+                        on="/",
+                        values=[
+                            "s3://{}".format(self.default_bucket),
+                            self.pipeline_name,
+                            #ExecutionVariables.PROCESSING_JOB_NAME,
+                            "preprocessing",
+                            "output-data-2"
+                        ],
+                    )
+                ),
+            ],
+            
+            arguments=["--proc_prefix", self.proc_prefix, \
+                       "--train_mount_dir", "/opt/ml/input/data/training/", \
+                       "--test_mount_dir", "/opt/ml/input/data/testing/"],
+        )
+        
+        self.preprocessing_process_2 = ProcessingStep(
+            name="PreprocessingProcess-2", ## Processing job이름
+            step_args=step_args,
+            cache_config=self.cache_config,
+            retry_policies=self.retry_policies
+        )
+        
+        print ("  \n== Preprocessing Step 2 ==")
+        print ("   \nArgs: ", self.preprocessing_process_2.arguments.items())
     
     def _find_nemo_ckpt(self, model_dir):
         checkpoint_path = None
@@ -256,124 +383,6 @@ class sm_pipeline():
             if os.path.isdir("./tmp"): shutil.rmtree("./tmp")            
             print ("pretrained_model_s3_path", pretrained_model_s3_path)
             return pretrained_model_s3_path
-    
-    def _step_preprocessing(self, ):
-        
-        dataset_processor = FrameworkProcessor(
-            estimator_cls=PyTorch,
-            framework_version=None,
-            image_uri=self.pm.get_params(key="-".join([self.prefix, "IMAGE-URI"])), #self.pipeline_config.get_value("PREPROCESSING", "image_uri"),
-            instance_type="ml.m5.xlarge", #self.pipeline_config.get_value("PREPROCESSING", "instance_type"), #self.processing_instance_type,
-            instance_count=1, #self.pipeline_config.get_value("PREPROCESSING", "instance_count", dtype="int"), #self.processing_instance_count,
-            role=self.role,
-            base_job_name=f"{self.base_job_prefix}/preprocessing", # bucket에 보이는 이름 (pipeline으로 묶으면 pipeline에서 정의한 이름으로 bucket에 보임)
-            sagemaker_session=self.pipeline_session
-        )
-        
-        step_args = dataset_processor.run(
-            job_name="preprocessing", ## 이걸 넣어야 캐시가 작동함, 안그러면 프로세서의 base_job_name 이름뒤에 날짜 시간이 붙어서 캐시 동작 안함
-            code='./preprocessing.py', #소스 디렉토리 안에서 파일 path
-            source_dir="./code/", #현재 파일에서 소스 디렉토리 상대경로 # add processing.py and requirements.txt here
-            git_config=self.git_config,
-            inputs=[
-                ProcessingInput(
-                    input_name="input-data",
-                    source=self.input_data_path,
-                    destination=os.path.join(self.proc_prefix, "input")
-                ),
-            ],
-            outputs=[       
-                ProcessingOutput(
-                    output_name="output-data",
-                    source=os.path.join(self.proc_prefix, "output"),
-                    destination=Join(
-                        on="/",
-                        values=[
-                            "s3://{}".format(self.default_bucket),
-                            self.pipeline_name,
-                            #ExecutionVariables.PROCESSING_JOB_NAME,
-                            "preprocessing",
-                            "output-data"
-                        ],
-                    )
-                ),
-            ],
-            
-            arguments=["--proc_prefix", self.proc_prefix, \
-                       "--train_mount_dir", "/opt/ml/input/data/training/", \
-                       "--test_mount_dir", "/opt/ml/input/data/testing/"],
-        )
-        
-        self.preprocessing_process = ProcessingStep(
-            name="PreprocessingProcess", ## Processing job이름
-            step_args=step_args,
-            cache_config=self.cache_config,
-            retry_policies=self.retry_policies
-        )
-        
-        print ("  \n== Preprocessing Step ==")
-        print ("   \nArgs: ", self.preprocessing_process.arguments.items())
-        print ("   \nArgs: ", self.preprocessing_process.arguments)
-        
-    def _step_preprocessing_2(self, ):
-        
-        dataset_processor = FrameworkProcessor(
-            estimator_cls=PyTorch,
-            framework_version=None,
-            image_uri=self.pm.get_params(key="-".join([self.prefix, "IMAGE-URI"])), #self.pipeline_config.get_value("PREPROCESSING", "image_uri"),
-            instance_type="ml.m5.xlarge", #self.pipeline_config.get_value("PREPROCESSING", "instance_type"), #self.processing_instance_type,
-            instance_count=1, #self.pipeline_config.get_value("PREPROCESSING", "instance_count", dtype="int"), #self.processing_instance_count,
-            role=self.role,
-            base_job_name=f"{self.base_job_prefix}/preprocessing-2", # bucket에 보이는 이름 (pipeline으로 묶으면 pipeline에서 정의한 이름으로 bucket에 보임)
-            sagemaker_session=self.pipeline_session
-        )
-        
-        step_args = dataset_processor.run(
-            job_name="preprocessing-2", ## 이걸 넣어야 캐시가 작동함, 안그러면 프로세서의 base_job_name 이름뒤에 날짜 시간이 붙어서 캐시 동작 안함
-            code='./preprocessing.py', #소스 디렉토리 안에서 파일 path
-            source_dir="./code/", #현재 파일에서 소스 디렉토리 상대경로 # add processing.py and requirements.txt here
-            git_config=self.git_config,
-            inputs=[
-                ProcessingInput(
-                    input_name="input-data",
-                    source=self.input_data_path,
-                    destination=os.path.join(self.proc_prefix, "input")
-                ),
-            ],
-            outputs=[       
-                ProcessingOutput(
-                    output_name="output-data-2",
-                    source=os.path.join(self.proc_prefix, "output"),
-                    destination=Join(
-                        on="/",
-                        values=[
-                            "s3://{}".format(self.default_bucket),
-                            self.pipeline_name,
-                            #ExecutionVariables.PROCESSING_JOB_NAME,
-                            "preprocessing",
-                            "output-data-2"
-                        ],
-                    )
-                ),
-            ],
-            
-            arguments=["--proc_prefix", self.proc_prefix, \
-                       "--train_mount_dir", "/opt/ml/input/data/training/", \
-                       "--test_mount_dir", "/opt/ml/input/data/testing/"],
-        )
-        
-        self.preprocessing_process_2 = ProcessingStep(
-            name="PreprocessingProcess-2", ## Processing job이름
-            step_args=step_args,
-            cache_config=self.cache_config,
-            retry_policies=self.retry_policies
-        )
-        
-        print ("  \n== Preprocessing Step 2 ==")
-        print ("   \nArgs: ", self.preprocessing_process_2.arguments.items())
-        print ("   \nArgs: ", self.preprocessing_process_2.arguments)
-    
-    
 
     def _step_training(self, ):
         
@@ -413,30 +422,66 @@ class sm_pipeline():
         
         num_re = "([0-9\\.]+)(e-?[[01][0-9])?"
         
-        '''
-            1. estimator for training task 정의
-              : 2.nemo-training-job 참조
-          
-        '''
-        ################
-        ## your codes ##
-        ################
-        
+        self.estimator = PyTorch(
+            entry_point="speech_to_text_ctc.py", # the script we want to run
+            source_dir="./code/", # where our conf/script is
+            git_config=self.git_config,
+            role=self.role,
+            instance_type="ml.g4dn.8xlarge", #ml.p3.2xlarge self.pipeline_config.get_value("TRAINING", "instance_type"),
+            instance_count=1, #self.pipeline_config.get_value("TRAINING", "instance_count", dtype="int"), 
+            image_uri=self.pm.get_params(key="-".join([self.prefix, "IMAGE-URI"])), #self.pipeline_config.get_value("TRAINING", "image_uri"),
+            volume_size=512,
+            output_path=Join(
+                on="/",
+                values=[
+                    "s3://{}".format(self.default_bucket),
+                    self.pipeline_name,
+                    #ExecutionVariables.TRAINING_JOB_NAME,
+                    "training",
+                    "model-output"
+                ],
+            ),
+            disable_profiler=True,
+            debugger_hook_config=False,
+            hyperparameters={'config-path': 'conf'},
+            #distribution={"smdistributed":{"dataparallel":{"enabled":True, "fp16": True}}},
+            sagemaker_session=self.pipeline_session,
+            checkpoint_s3_uri = Join(
+                on="/",
+                values=[
+                    "s3://{}".format(self.default_bucket),
+                    self.pipeline_name,
+                    #ExecutionVariables.TRAINING_JOB_NAME,
+                    "training",
+                    "ckpt"
+                ],
+            ),
+            metric_definitions = [
+                {"Name": "train_loss", "Regex": f"loss={num_re}"},
+                {"Name": "wer", "Regex": f"wer:{num_re}"}
+            ],
+            enable_sagemaker_metrics=True,
+            max_run=1*60*60,
+        )
         sm_experiment = self.base_job_prefix + "train-exp" #self.create_experiment(self.base_job_prefix + self.pipeline_config.get_value("TRAINING", "experiment_name"))
         job_name = self.base_job_prefix + "train-exp" #self.create_trial(self.base_job_prefix + self.pipeline_config.get_value("TRAINING", "experiment_name"))
-        
-        '''
-            2. step argument 정의
-              : 2.nemo-training-job 참조
-          
-        '''
-        
+
         step_training_args = self.estimator.fit(
-            
-            ################
-            ## your codes ##
-            ################
-            
+            inputs={
+                "training": TrainingInput(
+                    self.preprocessing_process.properties.ProcessingOutputConfig.Outputs["output-data"].S3Output.S3Uri,
+                ),
+                "testing": TrainingInput(
+                    self.preprocessing_process.properties.ProcessingOutputConfig.Outputs["output-data"].S3Output.S3Uri,
+                ),
+                "pretrained": pretrain_s3_path, #self.pm.get_params(key=self.base_job_prefix + "-PRETRAINED-WEIGHT"),
+            }, 
+            job_name=job_name,
+            experiment_config={
+              'TrialName': job_name,
+              'TrialComponentDisplayName': job_name,
+            },
+            logs="All",
         )
 
         
@@ -453,15 +498,20 @@ class sm_pipeline():
         
     def _step_evaluation(self, ):
         
-        
-        '''
-            1. processor for evaluation task 정의
-              : 3.nemo-evaluation-job 참조
-          
-        '''
-        ################
-        ## your codes ##
-        ################
+        eval_processor = FrameworkProcessor(
+            estimator_cls=PyTorch,
+            framework_version=None,
+            role=self.role, 
+            image_uri=self.pm.get_params(key="-".join([self.prefix, "IMAGE-URI"])), #self.pipeline_config.get_value("EVALUATION", "image_uri"),
+            instance_type="ml.g4dn.8xlarge", #self.pipeline_config.get_value("EVALUATION", "instance_type"),
+            instance_count=1, #self.pipeline_config.get_value("EVALUATION", "instance_count", dtype="int"),
+            env={
+                'MANIFEST_PATH': '/opt/ml/input/data/testing/an4/wav', 
+                'WAV_PATH' : '/opt/ml/processing/input/wav'
+            },
+            sagemaker_session=self.pipeline_session,
+            base_job_name=f"{self.base_job_prefix}/evaluation", # bucket에 보이는 이름 (pipeline으로 묶으면 pipeline에서 정의한 이름으로 bucket에 보임)
+        )
         
         sm_experiment = self.base_job_prefix + "eval-exp" #self.create_experiment(self.base_job_prefix + self.pipeline_config.get_value("EVALUATION", "experiment_name"))
         job_name = self.base_job_prefix + "eval-exp" #self.create_trial(self.base_job_prefix + self.pipeline_config.get_value("EVALUATION", "experiment_name"))
@@ -472,18 +522,60 @@ class sm_pipeline():
             path="evaluation.json", ## evaluate.py 에서 write하는 부분
         )
         
-        '''
-            2. step argument 정의
-              : 3.nemo-evaluation-job 참조
-          
-        '''
-        
         step_args = eval_processor.run(
-            
-            ################
-            ## your codes ##
-            ################
-           
+            code="evaluate.py",
+            source_dir="./code/",
+            git_config=self.git_config,
+            inputs=[
+                ProcessingInput(
+                    source=self.training_process.properties.ModelArtifacts.S3ModelArtifacts,
+                    input_name="model_artifact",
+                    destination=os.path.join(self.proc_prefix, "model")#  "/opt/ml/processing/model"
+                ),
+                ProcessingInput(
+                    source=Join(
+                        on="/",
+                        values=[
+                            self.preprocessing_process.properties.ProcessingOutputConfig.Outputs["output-data"].S3Output.S3Uri,
+                            "an4",
+                            "test_manifest.json",
+                        ],
+                    ),
+                    input_name="test_manifest_file",
+                    destination=os.path.join(self.proc_prefix, "input", "manifest") #"/opt/ml/processing/input/manifest"
+                ),
+                ProcessingInput(
+                    source=Join(
+                        on="/",
+                        values=[
+                            self.preprocessing_process.properties.ProcessingOutputConfig.Outputs["output-data"].S3Output.S3Uri,
+                            "an4",
+                            "wav",
+                        ],
+                    ),
+                    input_name="wav_dataset",
+                    destination=os.path.join(self.proc_prefix, "input", "wav") #"/opt/ml/processing/input/wav"
+                ),
+            ],
+            outputs=[
+                ProcessingOutput(
+                    output_name="evaluation-metrics",
+                    source=os.path.join(self.proc_prefix, "evaluation"), #"/opt/ml/processing/evaluation",
+                    destination=os.path.join(
+                        "s3://",
+                        self.default_bucket,
+                        self.pipeline_name,
+                        "evaluation",
+                        "output",
+                        "evaluation-metrics"
+                    ),
+                ),
+            ],
+            job_name=job_name,
+            experiment_config={
+              'TrialName': job_name,
+              'TrialComponentDisplayName': job_name,
+            },
         )
         
         self.evaluation_process = ProcessingStep(
@@ -590,8 +682,7 @@ class sm_pipeline():
                    self.evaluation_process, \
                    self.step_cond, \
             ],
-            # steps=[self.preprocessing_process, self.preprocessing_process_2, \
-            #        self.training_process, \
+            # steps=[self.preprocessing_process, \
             # ],
             sagemaker_session=self.pipeline_session
         )
