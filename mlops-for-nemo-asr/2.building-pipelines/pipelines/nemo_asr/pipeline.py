@@ -697,7 +697,11 @@ def get_pipeline(
     pipeline_name=None,
     model_package_group_name="NEMOASRPackageGroup",
     base_job_prefix="NEMOASR",
+    project_id="SageMakerProjectId",
 ):
+
+    
+    
     """Gets a SageMaker ML Pipeline instance working with on abalone data.
 
     Args:
